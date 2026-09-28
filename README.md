@@ -3,6 +3,12 @@
 采集解析安全文档 → 递归分块 → 向量化 → 混合检索 + Rerank → 带引用溯源的问答。
 
 > 与 `llm-qa-eval` 接口一致（retrieve/generate），可直接作为其**被测对象**，形成「建 RAG → 测 RAG」闭环。
+> 本系统已作为第 4 个被测对象接入 [llm-qa-eval](https://github.com/shian555/llm-qa-eval) 评测平台（在线 Demo 的「运行对比」页可看 A/B）。
+
+> **输入护栏（v2，来自评测闭环的真实修复）**：llm-qa-eval 三维评测发现初版对注入/越狱无防御
+> （inject 组通过率仅 73.3%：越狱载荷检索出含「绕过/伪造」标记词的正常语料，答案被判定攻破）。
+> v2 新增输入护栏（`RAG_INPUT_GUARD=off` 可关闭，供 A/B 复测），复测 inject 100%，
+> normal/hallucination 无退化。
 
 ## 架构
 
@@ -47,6 +53,7 @@ python run.py -q "什么是 XSS？" --mode real
 
 ## 待办 / 进阶
 
+- [x] 作为被测对象接入 llm-qa-eval 三维评测，产出实测报告（inject 73.3%→100% 闭环）
 - [ ] 导入真实 500+ 篇安全文档（NVD/CVE）
 - [ ] FastAPI + Gradio 服务化封装
-- [ ] 用 llm-qa-eval 跑三维指标，产出实测报告
+- [ ] 输入护栏从词表升级为轻量分类器

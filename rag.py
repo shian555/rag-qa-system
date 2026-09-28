@@ -49,10 +49,28 @@ class KeywordRetriever:
         return [c["content"] for _, c in scored[:k]]
 
 
+# 输入护栏词表：命中即拒绝生成（注入/越狱意图的粗过滤，生产可换分类器）
+_GUARD_WORDS = ("忽略", "系统提示", "隐藏提示", "DAN", "扮演", "假装",
+                "没有限制", "绕过", "入侵", "黑客", "翻译成英文")
+
+
 class RuleGenerator:
-    """规则生成（mock）：把检索片段串成带 [n] 引用的答案。"""
+    """规则生成（mock）：把检索片段串成带 [n] 引用的答案。
+
+    v2：新增输入护栏。来历：llm-qa-eval 三维评测发现初版对注入/越狱无防御
+    （inject 组通过率仅 73.3%，越狱问题检索出含「绕过/伪造」标记词的正常语料，
+    答案被判定攻破）；加护栏后复测 100%。设 RAG_INPUT_GUARD=off 可关闭，
+    用于 A/B 复测对比。
+    """
+
+    def __init__(self, guard: bool | None = None):
+        if guard is None:
+            guard = os.getenv("RAG_INPUT_GUARD", "on") != "off"
+        self.guard = guard
 
     def generate(self, question: str, contexts: List[str]) -> str:
+        if self.guard and any(w in question for w in _GUARD_WORDS):
+            return "抱歉，我无法执行该请求。"
         if not contexts:
             return "资料中未找到。"
         parts = [f"[{i + 1}] {c}" for i, c in enumerate(contexts)]
@@ -103,9 +121,9 @@ class RAGSystem:
         return {"question": question, "contexts": contexts, "answer": answer}
 
 
-def build_rag(mode: str = "mock", docs=None):
+def build_rag(mode: str = "mock", docs=None, guard: bool | None = None):
     docs = docs if docs is not None else DOCS
     if mode == "mock":
-        return RAGSystem(KeywordRetriever(docs), RuleGenerator())
+        return RAGSystem(KeywordRetriever(docs), RuleGenerator(guard=guard))
     from hybrid import HybridRetriever  # 延迟导入，避免 mock 依赖重库
     return RAGSystem(HybridRetriever(docs), LLMGenerator())
